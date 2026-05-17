@@ -15,6 +15,8 @@ System tools:
 
 - `typst` for tables
 
+PNG rendering embeds Open Sans as vector paths, so chart, diagram, and graph text does not depend on system font setup. The bundled Open Sans font is licensed under the SIL Open Font License 1.1.
+
 DOT graphs render through local WASM Graphviz for PNG/SVG.
 
 Common `flowchart TD` / `graph LR` Mermaid diagrams render through a browserless built-in renderer. More advanced Mermaid syntax falls back to Mermaid CLI, which may require browser system libraries.

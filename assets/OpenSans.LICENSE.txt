@@ -1,0 +1,8 @@
+Open Sans Regular
+
+Copyright 2020 The Open Sans Project Authors
+https://github.com/googlefonts/opensans
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The license text and FAQ are available at:
+https://scripts.sil.org/OFL

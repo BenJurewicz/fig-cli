@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { Graphviz } from "@hpcc-js/wasm/graphviz";
+import opentype from "opentype.js";
 import * as vega from "vega";
 import * as vegaLite from "vega-lite";
 import YAML from "yaml";
@@ -17,11 +18,8 @@ const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_OUT_DIR = "figures";
 const DEFAULT_WIDTH = 1120;
 const DEFAULT_HEIGHT = 720;
-const FONTCONFIG_FILE = path.join(PACKAGE_ROOT, "fontconfig", "fonts.conf");
 
-if (!process.env.FONTCONFIG_FILE && existsSync(FONTCONFIG_FILE)) {
-  process.env.FONTCONFIG_FILE = FONTCONFIG_FILE;
-}
+configureFontconfig();
 
 const program = new Command();
 program
@@ -280,6 +278,7 @@ function baseVegaLiteSpec(opts, rows, partial) {
     $schema: "https://vega.github.io/schema/vega-lite/v6.json",
     width: DEFAULT_WIDTH - 190,
     height: DEFAULT_HEIGHT - 190,
+    padding: { left: 118, right: 30, top: 34, bottom: 68 },
     title: opts.subtitle
       ? { text: opts.title ?? "Figure", subtitle: opts.subtitle, anchor: "start" }
       : opts.title,
@@ -334,7 +333,7 @@ async function renderChart({ spec, output, format }) {
     writeFileSync(output, svg);
     return;
   }
-  await sharp(Buffer.from(svg), { density: 288 }).png({ quality: 100, compressionLevel: 9 }).toFile(output);
+  await svgToPng(svg, output);
 }
 
 async function renderDiagram({ source, output, format }) {
@@ -358,7 +357,7 @@ async function renderDiagram({ source, output, format }) {
 async function renderGraph({ source, output, format }) {
   if (!["png", "svg"].includes(format)) throw new Error("Graphs support png or svg output.");
   const graphviz = await Graphviz.load();
-  const svg = graphviz.layout(source, "svg", "dot");
+  const svg = graphviz.layout(applyDefaultGraphFonts(source), "svg", "dot");
   await writeSvgOutput(svg, output, format);
 }
 
@@ -367,7 +366,11 @@ async function writeSvgOutput(svg, output, format) {
     writeFileSync(output, svg);
     return;
   }
-  await sharp(Buffer.from(svg), { density: 288 }).png({ quality: 100, compressionLevel: 9 }).toFile(output);
+  await svgToPng(svg, output);
+}
+
+async function svgToPng(svg, output) {
+  await sharp(Buffer.from(textToPaths(svg)), { density: 288 }).png({ quality: 100, compressionLevel: 9 }).toFile(output);
 }
 
 function isSimpleMermaidFlow(source) {
@@ -451,12 +454,119 @@ function parseSimpleFlow(source) {
     const from = parseNodeRef(parts[0]);
     const to = parseNodeRef(parts[1].replace(/^\|([^|]+)\|/, ""));
     const label = parts[1].match(/^\|([^|]+)\|/)?.[1];
-    if (from) nodes.set(from.id, from);
-    if (to) nodes.set(to.id, to);
+    if (from) mergeNode(nodes, from);
+    if (to) mergeNode(nodes, to);
     if (from && to) edges.push({ from: from.id, to: to.id, label });
   }
 
   return { direction, nodes, edges };
+}
+
+function mergeNode(nodes, node) {
+  const current = nodes.get(node.id);
+  if (!current || current.label === current.id && node.label !== node.id) {
+    nodes.set(node.id, node);
+  }
+}
+
+function configureFontconfig() {
+  if (process.env.FONTCONFIG_FILE) return;
+
+  const fontDir = path.join(PACKAGE_ROOT, "assets");
+  if (!existsSync(fontDir)) return;
+
+  const dir = path.join(os.tmpdir(), "fig-cli-fontconfig");
+  mkdirSync(dir, { recursive: true });
+  const configFile = path.join(dir, "fonts.conf");
+  const cacheDir = path.join(os.tmpdir(), "fig-cli-font-cache");
+  writeFileSync(configFile, `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <dir>${xmlEscape(fontDir)}</dir>
+  <dir>/usr/share/fonts</dir>
+  <cachedir>${xmlEscape(cacheDir)}</cachedir>
+  <config></config>
+</fontconfig>
+`);
+  process.env.FONTCONFIG_FILE = configFile;
+}
+
+function applyDefaultGraphFonts(source) {
+  if (/fontname\s*=/i.test(source)) return source;
+  const insertAt = source.indexOf("{");
+  if (insertAt < 0) return source;
+  const defaults = '\n  graph [fontname="Open Sans", fontsize=10];\n  node [fontname="Open Sans", fontsize=10, margin="0.20,0.10"];\n  edge [fontname="Open Sans", fontsize=9];\n';
+  return `${source.slice(0, insertAt + 1)}${defaults}${source.slice(insertAt + 1)}`;
+}
+
+function xmlEscape(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function textToPaths(svg) {
+  const fonts = loadPathFonts();
+  if (!fonts.normal) return svg;
+
+  return svg.replace(/<text\s+([^>]*)>([\s\S]*?)<\/text>/g, (_match, rawAttrs, rawText) => {
+    const attrs = parseXmlAttrs(rawAttrs);
+    const text = decodeXml(rawText.replace(/<[^>]+>/g, "").trim());
+    if (!text) return "";
+
+    const style = parseStyle(attrs.style ?? "");
+    const size = parseFloat(String(attrs["font-size"] ?? style["font-size"] ?? "16").replace("px", "")) || 16;
+    const weight = String(attrs["font-weight"] ?? style["font-weight"] ?? "").toLowerCase();
+    const font = /bold|[6-9]00/.test(weight) && fonts.bold ? fonts.bold : fonts.normal;
+    const fill = attrs.fill ?? style.fill ?? "#202124";
+    const anchor = attrs["text-anchor"] ?? style["text-anchor"];
+    const x = Number(attrs.x ?? 0);
+    const y = Number(attrs.y ?? 0);
+    const width = font.getAdvanceWidth(text, size);
+    const dx = anchor === "middle" ? -width / 2 : anchor === "end" ? -width : 0;
+    const transform = attrs.transform ? ` transform="${xmlEscape(attrs.transform)}"` : "";
+    const opacity = attrs.opacity ? ` opacity="${xmlEscape(attrs.opacity)}"` : "";
+    const pointerEvents = attrs["pointer-events"] ? ` pointer-events="${xmlEscape(attrs["pointer-events"])}"` : "";
+    return `<path d="${font.getPath(text, x + dx, y, size).toPathData(2)}" fill="${xmlEscape(fill)}"${opacity}${transform}${pointerEvents}/>`;
+  });
+}
+
+let pathFonts;
+
+function loadPathFonts() {
+  if (pathFonts) return pathFonts;
+  const fontFile = path.join(PACKAGE_ROOT, "assets", "OpenSans.ttf");
+  pathFonts = {
+    normal: loadFont(fontFile),
+    bold: loadFont(fontFile)
+  };
+  return pathFonts;
+}
+
+function loadFont(file) {
+  if (!existsSync(file)) return null;
+  const bytes = readFileSync(file);
+  return opentype.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+}
+
+function parseXmlAttrs(rawAttrs) {
+  return Object.fromEntries([...rawAttrs.matchAll(/([\w:-]+)="([^"]*)"/g)].map(match => [match[1], match[2]]));
+}
+
+function parseStyle(style) {
+  return Object.fromEntries(style.split(";").map(part => part.trim()).filter(Boolean).map(part => {
+    const index = part.indexOf(":");
+    return index >= 0 ? [part.slice(0, index).trim(), part.slice(index + 1).trim()] : [part, ""];
+  }));
+}
+
+function decodeXml(value) {
+  return String(value)
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'");
 }
 
 function parseNodeRef(value) {
