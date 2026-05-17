@@ -217,29 +217,36 @@ async function renderTable({ rows, columns, output, title, note, format }) {
 
 function tableTypst(rows, columns, { title, note }) {
   const align = columns.map(c => inferNumeric(rows, c) ? "right" : "left").join(", ");
-  const tracks = columns.map(c => inferNumeric(rows, c) ? ".75fr" : "1.05fr").join(", ");
+  const tracks = columns.map(() => "auto").join(", ");
   const cells = [
     `table.header(${columns.map(c => `[${typStrong(labelize(c))}]`).join(", ")}),`,
     "table.hline(stroke: 0.45pt),",
     ...rows.flatMap(row => columns.map(c => `[${typInline(row[c] ?? "")}],`)),
+    `table.cell(colspan: ${columns.length}, inset: 0pt)[#v(1.4pt)],`,
     "table.hline(stroke: 0.9pt),"
   ].join("\n    ");
 
-  return `#set page(width: 7.4in, height: auto, margin: 0.34in)
+  const titleBlock = title ? `text(size: 12.5pt, weight: "bold")[${typInline(title)}],` : "";
+  const noteBlock = note ? `,\n    v(5pt),\n    text(size: 8.2pt, fill: rgb("#5f6368"))[${typInline(note)}]` : "";
+
+  return `#set page(width: auto, height: auto, margin: 0.14in)
 #set text(font: "Libertinus Serif", size: 11pt)
 #set par(justify: false)
 
 #align(center)[
-  ${title ? `#text(size: 15pt, weight: "bold")[${typInline(title)}]\n  #v(5pt)` : ""}
-  #table(
-    columns: (${tracks}),
-    align: (${align}),
-    stroke: none,
-    inset: (x: 9pt, y: 5.5pt),
-    table.hline(stroke: 0.9pt),
-    ${cells}
+  #stack(
+    dir: ttb,
+    spacing: 8pt,
+    ${titleBlock}
+    table(
+      columns: (${tracks}),
+      align: (${align}),
+      stroke: none,
+      inset: (x: 5.5pt, y: 3.2pt),
+      table.hline(stroke: 0.9pt),
+      ${cells}
+    )${noteBlock}
   )
-  ${note ? `#v(8pt)\n  #text(size: 8.8pt, fill: rgb("#5f6368"))[${typInline(note)}]` : ""}
 ]`;
 }
 
