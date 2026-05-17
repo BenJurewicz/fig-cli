@@ -1,0 +1,9 @@
+type: table
+title: Model Scores
+source: test/fixtures/models.csv
+columns:
+  - model
+  - score
+  - cost
+format: png
+output: figures/model-scores.png

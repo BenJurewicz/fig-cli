@@ -1,0 +1,8 @@
+flowchart TD
+  A[Request] --> B{Figure type}
+  B -->|Table| C[Typst]
+  B -->|Chart| D[Vega-Lite]
+  B -->|Graph| E[Graphviz]
+  C --> F[PNG/SVG]
+  D --> F
+  E --> F

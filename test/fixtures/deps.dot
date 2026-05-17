@@ -1,0 +1,8 @@
+digraph G {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fillcolor="#f7f9fb", color="#5f6b7a"];
+  fig -> typst;
+  fig -> "vega-lite";
+  fig -> mermaid;
+  fig -> graphviz;
+}

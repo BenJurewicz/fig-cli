@@ -1,0 +1,8 @@
+type: chart
+title: Monthly Revenue
+source: test/fixtures/months.csv
+kind: bar
+x: month
+y: revenue
+format: png
+output: figures/monthly-revenue.png

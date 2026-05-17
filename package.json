@@ -1,0 +1,36 @@
+{
+  "name": "fig-cli",
+  "version": "0.1.0",
+  "description": "Offline CLI for professional tables, charts, diagrams, and graphs.",
+  "type": "module",
+  "bin": {
+    "fig": "./bin/fig.mjs"
+  },
+  "scripts": {
+    "fig": "node ./bin/fig.mjs",
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node test/smoke.mjs"
+  },
+  "keywords": [
+    "cli",
+    "figures",
+    "charts",
+    "tables",
+    "vega-lite",
+    "typst"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@hpcc-js/wasm": "^2.33.5",
+    "@mermaid-js/mermaid-cli": "^11.15.0",
+    "commander": "^14.0.3",
+    "csv-parse": "^6.2.1",
+    "sharp": "^0.34.5",
+    "vega": "^6.2.0",
+    "vega-lite": "^6.4.3",
+    "yaml": "^2.9.0"
+  }
+}
