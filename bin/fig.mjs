@@ -230,7 +230,7 @@ function tableTypst(rows, columns, { title, note }) {
   const noteBlock = note ? `,\n    v(5pt),\n    text(size: 8.2pt, fill: rgb("#5f6368"))[${typInline(note)}]` : "";
 
   return `#set page(width: auto, height: auto, margin: 0.14in)
-#set text(font: "Libertinus Serif", size: 11pt)
+#set text(font: ("Libertinus Serif", "Noto Color Emoji"), size: 11pt)
 #set par(justify: false)
 
 #align(center)[
